@@ -1,0 +1,17 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Iinclude",
+      "-c",
+      "-w",
+      "-O2",
+      "-o",
+      "build/target/main.o",
+      "src/main.c"
+    ],
+    "directory": "/home/jay/projects/network_prog/np_course_assignment_p1",
+    "file": "/home/jay/projects/network_prog/np_course_assignment_p1/src/main.c",
+    "output": "/home/jay/projects/network_prog/np_course_assignment_p1/build/target/main.o"
+  }
+]
