@@ -3,6 +3,7 @@ DBGDIR := $(BUILDDIR)/dbg
 TGTDIR := $(BUILDDIR)/target
 SRCDIR := src
 INCDIR := include
+TGTNAME := shell
 
 CC := gcc
 CFLAGS := -I$(INCDIR) -c -w -O2
@@ -18,13 +19,13 @@ DBGDIRS := $(subst src,$(DBGDIR),$(dir $(SOURCES)))
 build: target
 
 run: target
-	./$(TGTDIR)/compiler $(filter-out $@,$(MAKECMDGOALS))
+	./$(TGTDIR)/$(TGTNAME) $(filter-out $@,$(MAKECMDGOALS))
 
 target: $(TGTDIRS) $(SOURCES) $(HEADERS) $(TGTOBJ)
-	$(CC) -o $(TGTDIR)/compiler $(TGTOBJ)
+	$(CC) -o $(TGTDIR)/$(TGTNAME) $(TGTOBJ)
 
 debug: $(DBGDIRS) $(SOURCES) $(HEADERS) $(DBGOBJ)
-	$(CC) -o $(DBGDIR)/compiler $(DBGOBJ)
+	$(CC) -o $(DBGDIR)/$(TGTNAME) $(DBGOBJ)
 
 clean:
 	rm -rf $(BUILDDIR)
