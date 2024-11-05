@@ -6,7 +6,7 @@ INCDIR := include
 TGTNAME := shell
 
 CC := gcc
-CFLAGS := -I$(INCDIR) -c -w -O2
+CFLAGS := -I$(INCDIR) -c -w
 DBGFLAGS := $(CFLAGS) -ggdb
 
 SOURCES := $(shell find $(SRCDIR) -type f -iname '*.c')
