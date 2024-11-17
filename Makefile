@@ -11,10 +11,10 @@ DBGFLAGS := $(CFLAGS) -ggdb
 
 SOURCES := $(shell find $(SRCDIR) -type f -iname '*.c')
 HEADERS := $(shell find $(SRCDIR) -type f -iname '*.h')
-TGTOBJ := $(subst src,$(TGTDIR),$(SOURCES:.c=.o))
-DBGOBJ := $(subst src,$(DBGDIR),$(SOURCES:.c=.o))
-TGTDIRS := $(subst src,$(TGTDIR),$(dir $(SOURCES)))
-DBGDIRS := $(subst src,$(DBGDIR),$(dir $(SOURCES)))
+TGTOBJ := $(subst $(SRCDIR),$(TGTDIR),$(SOURCES:.c=.o))
+DBGOBJ := $(subst $(SRCDIR),$(DBGDIR),$(SOURCES:.c=.o))
+TGTDIRS := $(sort $(dir $(TGTOBJ)))
+DBGDIRS := $(sort $(dir $(DBGOBJ)))
 
 build: target
 

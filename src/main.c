@@ -1,3 +1,4 @@
+#define _GNU_SOURCE
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,6 +9,7 @@
 #include "main.h"
 #include "parse_command.h"
 #include "signal_handlers.h"
+#include "spawn_proc.h"
 #include "types/cmd.h"
 #include "utils/printfn.h"
 
@@ -36,13 +38,26 @@ int main(int argc, char *argv[])
                 PRINTF_FG_WHITE("\n");
                 num_process -= 1;
                 to_exit = true;
-                continue;
+                break;
             }
 
-            pid_t pid = fork();
-            if(pid == 0)
-                execvp(command->cmd_arr[0], command->cmd_arr);
+            spawn_proc(command, cmd_list->pipefds, cmd_list->pipe_count);
         }
+
+        for(int i = 0; i < cmd_list->pipe_count; i++)
+            close(cmd_list->pipefds[i]);
+
+        for(size_t i = 0; i < cmd_list_size; i++)
+        {
+            command_t *cmd = cmd_list->cmd_list + i;
+            for(size_t i = 0; i < cmd->size - 1; i++)
+                free(cmd->cmd_arr[i]);
+            free(cmd->cmd_arr);
+        }
+
+        free(cmd_list->pipefds);
+        free(cmd_list);
+
         while(num_process > 0)
             ;
     }
