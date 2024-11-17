@@ -2,6 +2,7 @@
 #define MAIN_H
 #define MAX_COMMAND_SIZE 256
 
+#define PIPE_BUF_SIZE 256
 extern unsigned int num_process;
 
 #endif // !MAIN_H

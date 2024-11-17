@@ -1,3 +1,5 @@
+#include "utils/misc.h"
+#include <strings.h>
 #define _GNU_SOURCE
 #include <stdbool.h>
 #include <stdio.h>
@@ -42,6 +44,24 @@ int main(int argc, char *argv[])
             }
 
             spawn_proc(command, cmd_list->pipefds, cmd_list->pipe_count);
+        }
+
+        if(cmd_list->is_trip)
+        {
+            char buffer[PIPE_BUF_SIZE];
+            ssize_t bytes_read;
+
+            bzero(buffer, PIPE_BUF_SIZE);
+            close(cmd_list->cfd);
+
+            while((bytes_read = read(cmd_list->ofd, buffer, PIPE_BUF_SIZE))
+                  > 0)
+            {
+                for(int i = 0; i < 3; i++)
+                    if(write(cmd_list->ifd[i], buffer, bytes_read) == -1)
+                        exit_err_status("WRITE FAILED WITH: ");
+                bzero(buffer, PIPE_BUF_SIZE);
+            }
         }
 
         for(int i = 0; i < cmd_list->pipe_count; i++)

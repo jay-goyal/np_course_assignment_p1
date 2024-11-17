@@ -4,11 +4,9 @@
 
 // PROJECT IMPORTS
 #include "utils/misc.h"
-#include "utils/printfn.h"
 
 void exit_err_status(char *fmt)
 {
-    PRINTF_FG_RED("%s", fmt);
-    PRINTF_FG_WHITE("\n");
+    perror(fmt);
     exit(-1);
 }
