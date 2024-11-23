@@ -4,7 +4,7 @@
 
 // PROJECT IMPORTS
 #include "types/cluster_data.h"
-#include "udp/utils.h"
+#include "udp/cluster_info.h"
 #include "utils/misc.h"
 
 void send_cluster_data_udp(cluster_data_t *data, int sock, in_addr_t dest_ip,

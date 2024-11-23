@@ -29,9 +29,4 @@ void sigchld_handler(int signo)
     }
 }
 
-void setup_sighandlers(void)
-{
-    PRINTF_FG_CYAN("INITIALIZING SIGNAL HANDLERS");
-    PRINTF_FG_WHITE("\n");
-    signal(SIGCLD, sigchld_handler);
-}
+void setup_sighandlers(void) { signal(SIGCLD, sigchld_handler); }

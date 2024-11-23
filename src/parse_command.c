@@ -4,14 +4,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/select.h>
 #include <unistd.h>
 
 // PROJECT IMPORTS
+#include "main.h"
 #include "parse_command.h"
+#include "types/cluster_data.h"
 #include "types/cmd.h"
+#include "udp/cluster_info.h"
+#include "udp/command_data.h"
 #include "utils/misc.h"
 #include "utils/printfn.h"
-command_list_t *parse_command(char *cmd_str, int cmd_len)
+
+command_list_t *parse_command(char *cmd_str, int cmd_len, int default_stdin,
+                              int default_stdout)
 {
     // Initilize command list
     command_list_t *cmds = (command_list_t *) malloc(sizeof(command_list_t));
@@ -32,8 +39,8 @@ command_list_t *parse_command(char *cmd_str, int cmd_len)
     command_t *cmd = &cmds->cmd_list[0];
     cmd->cmd_arr = (char **) malloc(sizeof(char *));
     cmd->size = 1;
-    cmd->stdin_fd = STDIN_FILENO;
-    cmd->stdout_fd = STDOUT_FILENO;
+    cmd->stdin_fd = default_stdin;
+    cmd->stdout_fd = default_stdout;
 
     // Initialize first command string
     size_t cmd_size = BASE_CMD_SIZE;
@@ -104,7 +111,7 @@ command_list_t *parse_command(char *cmd_str, int cmd_len)
                 i += 2;
             }
             cmd->stdin_fd = fds[0];
-            cmd->stdout_fd = STDOUT_FILENO;
+            cmd->stdout_fd = default_stdout;
             cmd->cmd_arr = (char **) malloc(sizeof(char *));
             cmd->size = 1;
 
@@ -251,7 +258,7 @@ command_list_t *parse_command(char *cmd_str, int cmd_len)
 
             // Set command struct correctly
             cmd->stdin_fd = fds[0];
-            cmd->stdout_fd = STDOUT_FILENO;
+            cmd->stdout_fd = default_stdout;
             cmd->cmd_arr = (char **) malloc(sizeof(char *));
             cmd->size = 1;
 
@@ -279,7 +286,7 @@ command_list_t *parse_command(char *cmd_str, int cmd_len)
     return cmds;
 }
 
-command_list_t *getcmdlist(void)
+command_list_t *getcmdlist(int udp_socket)
 {
     char *lineptr = NULL;
     size_t n = 0;
@@ -287,8 +294,101 @@ command_list_t *getcmdlist(void)
     PRINTF_FG_WHITE("$ ");
     fflush(stdout);
 
-    n = getline(&lineptr, &buf_size, stdin);
-    command_list_t *cmd_list = parse_command(lineptr, n);
-    free(lineptr);
-    return cmd_list;
+    while(1)
+    {
+        // Use select to select between socket and stdin
+        fd_set read_fds;
+        int max_fd
+            = (udp_socket > STDIN_FILENO ? udp_socket : STDIN_FILENO) + 1;
+        FD_ZERO(&read_fds);
+        FD_SET(STDIN_FILENO, &read_fds);
+        FD_SET(udp_socket, &read_fds);
+
+        int ready = select(max_fd, &read_fds, NULL, NULL, NULL);
+
+        if(ready == -1)
+            exit_err_status("SELECT FAILED WITH: ");
+
+        if(FD_ISSET(STDIN_FILENO, &read_fds))
+        {
+            n = getline(&lineptr, &buf_size, stdin);
+            if(n == -1)
+                exit_err_status("GETLINE FAILED WITH: ");
+            command_list_t *cmd_list;
+            if(!is_cluster)
+            {
+                cmd_list
+                    = parse_command(lineptr, n, STDIN_FILENO, STDOUT_FILENO);
+            }
+            else
+            {
+                cmd_list = (command_list_t *) malloc(sizeof(command_list_t));
+                cmd_list->cmd_list = (command_t *) malloc(sizeof(command_t));
+                cmd_list->size = 1;
+                cmd_list->pipefds = NULL;
+                cmd_list->pipe_count = 0;
+                cmd_list->is_trip = false;
+                cmd_list->is_cluster = false;
+                cmd_list->ip_address_array = NULL;
+                cmd_list->addr_count = 0;
+                cmd_list->ports_array = NULL;
+                cmd_list->ofd = 0;
+                for(int i = 0; i < 3; i++)
+                    cmd_list->ifd[i] = 0;
+
+                command_t *cmd = &cmd_list->cmd_list[0];
+                cmd->cmd_arr = (char **) malloc(sizeof(char *));
+                cmd->size = 1;
+                cmd->stdin_fd = STDIN_FILENO;
+                cmd->stdout_fd = 0;
+                const char *dot
+                    = strchr(lineptr, '.'); // Find the dot separator
+
+                if(dot && lineptr[0] == 'n')
+                {
+                    if(lineptr[1] == '*')
+                        cmd->stdout_fd = 0;
+                    else
+                        cmd->stdout_fd = atoi(lineptr + 1);
+
+                    cmd->cmd_arr[0] = strdup(dot + 1);
+                }
+                else
+                {
+                    cmd->stdout_fd = 1;
+                    cmd->cmd_arr[0] = strdup(lineptr);
+                }
+            }
+            free(lineptr);
+            return cmd_list;
+        }
+        else if(FD_ISSET(udp_socket, &read_fds))
+        {
+            if(!is_cluster)
+            {
+                cluster_data_t data = recv_cluster_data_udp(udp_socket);
+                PRINTF_FG_WHITE("\r");
+                PRINTF_FG_CYAN("ENTERING CLUSTER MODE");
+                PRINTF_FG_WHITE("\n");
+                for(int i = 0; i < data.addr_count; i++)
+                {
+                    PRINTF_FG_CYAN("NODE n%d: %s::%d", i + 1,
+                                   in_addr_to_str(data.ip_address_array[i]),
+                                   data.ports_array[i]);
+                    PRINTF_FG_WHITE("\n");
+                }
+                PRINTF_FG_WHITE("$ ");
+                fflush(stdout);
+                global_cluster_data = data;
+                is_cluster = true;
+            }
+            else
+            {
+                PRINTF_FG_WHITE("\r");
+                recv_output(udp_socket, INADDR_ANY, 0);
+                PRINTF_FG_WHITE("$ ");
+                fflush(stdout);
+            }
+        }
+    }
 }

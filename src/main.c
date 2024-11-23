@@ -1,13 +1,10 @@
-#include "types/cluster_data.h"
-#include <netinet/in.h>
-#include <sys/socket.h>
 #define _GNU_SOURCE
-#include "utils/misc.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 // PROJECT IMPORTS
@@ -15,11 +12,16 @@
 #include "parse_command.h"
 #include "signal_handlers.h"
 #include "spawn_proc.h"
+#include "types/cluster_data.h"
 #include "types/cmd.h"
+#include "udp/cluster_info.h"
+#include "udp/command_data.h"
+#include "utils/misc.h"
 #include "utils/printfn.h"
 
 unsigned int num_process = 0;
 bool is_cluster = false;
+cluster_data_t global_cluster_data;
 
 int main(int argc, char *argv[])
 {
@@ -43,12 +45,12 @@ int main(int argc, char *argv[])
     if(getsockname(udp_socket, (struct sockaddr *) &self_addr, &addr_len) < 0)
         exit_err_status("FAILED TO GET UDP SOCKET INFO:");
 
-    PRINTF_FG_CYAN("TERMINAL BOUND TO PORT: %d", ntohs(self_addr.sin_port));
+    PRINTF_FG_MAGENTA("TERMINAL BOUND TO PORT: %d", ntohs(self_addr.sin_port));
     PRINTF_FG_WHITE("\n");
 
     while(!to_exit)
     {
-        command_list_t *cmd_list = getcmdlist();
+        command_list_t *cmd_list = getcmdlist(udp_socket);
         size_t cmd_list_size = cmd_list->size;
         PRINTF_FG_CYAN("Executing %zu commands", cmd_list_size);
         PRINTF_FG_WHITE("\n");
@@ -60,7 +62,8 @@ int main(int argc, char *argv[])
                 command_t *command = cmd_list->cmd_list + i;
                 size_t cmd_size = command->size;
 
-                if(strcmp(command->cmd_arr[0], "exit") == 0)
+                if(strcmp(command->cmd_arr[0], "exit") == 0
+                   || strcmp(command->cmd_arr[0], "exit\n") == 0)
                 {
                     PRINTF_FG_GREEN("EXITING");
                     PRINTF_FG_WHITE("\n");
@@ -69,7 +72,30 @@ int main(int argc, char *argv[])
                     break;
                 }
 
-                spawn_proc(command, cmd_list->pipefds, cmd_list->pipe_count);
+                if(!is_cluster)
+                    spawn_proc(command, cmd_list->pipefds,
+                               cmd_list->pipe_count);
+                else
+                {
+                    num_process -= cmd_list_size;
+                    if(command->stdout_fd != 0)
+                    {
+                        send_command(
+                            command->cmd_arr[0], udp_socket,
+                            global_cluster_data
+                                .ip_address_array[command->stdout_fd - 1],
+                            global_cluster_data
+                                .ports_array[command->stdout_fd - 1]);
+                    }
+                    else
+                    {
+                        for(int i = 0; i < global_cluster_data.addr_count; i++)
+                            send_command(
+                                command->cmd_arr[0], udp_socket,
+                                global_cluster_data.ip_address_array[i],
+                                global_cluster_data.ports_array[i]);
+                    }
+                }
             }
 
             if(cmd_list->is_trip)
@@ -96,6 +122,12 @@ int main(int argc, char *argv[])
                 = { .addr_count = cmd_list->addr_count,
                     .ip_address_array = cmd_list->ip_address_array,
                     .ports_array = cmd_list->ports_array };
+            for(int i = 0; i < cluster_data.addr_count; i++)
+            {
+                send_cluster_data_udp(&cluster_data, udp_socket,
+                                      cluster_data.ip_address_array[i],
+                                      cluster_data.ports_array[i]);
+            }
         }
 
         for(int i = 0; i < cmd_list->pipe_count; i++)

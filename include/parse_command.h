@@ -5,6 +5,6 @@
 
 #define BASE_CMD_SIZE 128
 
-command_list_t *getcmdlist(void);
+command_list_t *getcmdlist(int udp_socket);
 
 #endif // !PARSE_COMMANDS_H
