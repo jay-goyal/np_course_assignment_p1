@@ -1,8 +1,10 @@
 #ifndef CMD_H
 #define CMD_H
 
+#include <arpa/inet.h>
 #include <stdbool.h>
 #include <stddef.h>
+
 typedef struct command
 {
     char **cmd_arr;
@@ -21,6 +23,10 @@ typedef struct command_list
     int ofd;
     int cfd;
     int ifd[3];
+    bool is_cluster;
+    size_t addr_count;
+    in_addr_t *ip_address_array;
+    int *ports_array;
 } command_list_t;
 
 #endif // !CMD_H

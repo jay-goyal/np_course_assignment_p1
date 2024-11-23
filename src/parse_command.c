@@ -1,7 +1,9 @@
+#include <arpa/inet.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 // PROJECT IMPORTS
@@ -18,6 +20,10 @@ command_list_t *parse_command(char *cmd_str, int cmd_len)
     cmds->pipefds = NULL;
     cmds->pipe_count = 0;
     cmds->is_trip = false;
+    cmds->is_cluster = false;
+    cmds->ip_address_array = NULL;
+    cmds->addr_count = 0;
+    cmds->ports_array = NULL;
     cmds->ofd = 0;
     for(int i = 0; i < 3; i++)
         cmds->ifd[i] = 0;
@@ -116,12 +122,38 @@ command_list_t *parse_command(char *cmd_str, int cmd_len)
             // Add \0 at end of current string
             curr_string = realloc(curr_string, (cmd_idx + 1) * sizeof(char));
             curr_string[cmd_idx] = '\0';
-            cmd->cmd_arr[cmd->size - 1] = curr_string;
 
             // Add another element to cmd_arr array of current command
-            cmd->cmd_arr
-                = realloc(cmd->cmd_arr, (cmd->size + 1) * sizeof(char *));
-            cmd->cmd_arr[cmd->size++] = NULL;
+            if(cmds->is_cluster)
+            {
+                cmds->addr_count++;
+                cmds->ip_address_array = realloc(
+                    cmds->ip_address_array,
+                    sizeof(*cmds->ip_address_array) * cmds->addr_count);
+                cmds->ports_array
+                    = realloc(cmds->ports_array,
+                              sizeof(*cmds->ports_array) * cmds->addr_count);
+                cmds->ip_address_array[cmds->addr_count - 1]
+                    = inet_addr(curr_string);
+                char *ip = strtok(curr_string, "::");
+                char *port = strtok(NULL, "::");
+                if(!ip || !port)
+                {
+                    PRINTF_FG_RED("INVALID STRING PASSED IN IP");
+                    PRINTF_FG_WHITE("\n");
+                    exit(EXIT_FAILURE);
+                }
+                cmds->ip_address_array[cmds->addr_count - 1] = inet_addr(ip);
+                cmds->ports_array[cmds->addr_count - 1] = atoi(port);
+                free(curr_string);
+            }
+            else
+            {
+                cmd->cmd_arr[cmd->size - 1] = curr_string;
+                cmd->cmd_arr
+                    = realloc(cmd->cmd_arr, (cmd->size + 1) * sizeof(char *));
+                cmd->cmd_arr[cmd->size++] = NULL;
+            }
             break;
         }
 
@@ -133,16 +165,48 @@ command_list_t *parse_command(char *cmd_str, int cmd_len)
                 curr_string
                     = realloc(curr_string, (cmd_idx + 1) * sizeof(char));
                 curr_string[cmd_idx] = '\0';
-                cmd->cmd_arr[cmd->size - 1] = curr_string;
 
-                // Add another element to cmd_arr array of current command
-                cmd->cmd_arr
-                    = realloc(cmd->cmd_arr, (cmd->size + 1) * sizeof(char *));
+                if(cmd->size == 1 && strcmp(curr_string, "cluster") == 0)
+                {
+                    cmds->is_cluster = true;
+                    cmds->addr_count = 0;
+                    free(curr_string);
+                }
+
+                else if(cmds->is_cluster)
+                {
+                    cmds->addr_count++;
+                    cmds->ip_address_array = realloc(
+                        cmds->ip_address_array,
+                        sizeof(*cmds->ip_address_array) * cmds->addr_count);
+                    cmds->ports_array
+                        = realloc(cmds->ports_array, sizeof(*cmds->ports_array)
+                                                         * cmds->addr_count);
+                    cmds->ip_address_array[cmds->addr_count - 1]
+                        = inet_addr(curr_string);
+                    char *ip = strtok(curr_string, "::");
+                    char *port = strtok(NULL, "::");
+                    cmds->ip_address_array[cmds->addr_count - 1]
+                        = inet_addr(ip);
+                    cmds->ports_array[cmds->addr_count - 1] = atoi(port);
+                    free(curr_string);
+                }
+                else
+                {
+
+                    // Add another element to cmd_arr array of current command
+                    cmd->cmd_arr[cmd->size - 1] = curr_string;
+                    cmd->cmd_arr = realloc(cmd->cmd_arr,
+                                           (cmd->size + 1) * sizeof(char *));
+                }
+
+                // Reset the string
                 cmd_size = BASE_CMD_SIZE;
-                cmd_idx = 0;
                 curr_string = (char *) malloc(cmd_size * sizeof(char));
-                cmd->cmd_arr[cmd->size++] = curr_string;
+                cmd_idx = 0;
                 is_str_start = true;
+                if(!cmds->is_cluster)
+                    cmd->cmd_arr[cmd->size++] = curr_string;
             }
             continue;
         }
