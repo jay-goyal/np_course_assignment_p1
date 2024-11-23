@@ -1,4 +1,6 @@
 #include <arpa/inet.h>
+#include <errno.h>
+#include <netinet/in.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -294,12 +296,12 @@ command_list_t *getcmdlist(int udp_socket)
     PRINTF_FG_WHITE("$ ");
     fflush(stdout);
 
+    fd_set read_fds;
+    int max_fd = (udp_socket > STDIN_FILENO ? udp_socket : STDIN_FILENO) + 1;
+
     while(1)
     {
         // Use select to select between socket and stdin
-        fd_set read_fds;
-        int max_fd
-            = (udp_socket > STDIN_FILENO ? udp_socket : STDIN_FILENO) + 1;
         FD_ZERO(&read_fds);
         FD_SET(STDIN_FILENO, &read_fds);
         FD_SET(udp_socket, &read_fds);
@@ -307,13 +309,18 @@ command_list_t *getcmdlist(int udp_socket)
         int ready = select(max_fd, &read_fds, NULL, NULL, NULL);
 
         if(ready == -1)
-            exit_err_status("SELECT FAILED WITH: ");
+            if(errno == EINTR)
+                continue;
+            else
+                exit_err_status("SELECT FAILED WITH: ");
 
         if(FD_ISSET(STDIN_FILENO, &read_fds))
         {
             n = getline(&lineptr, &buf_size, stdin);
             if(n == -1)
                 exit_err_status("GETLINE FAILED WITH: ");
+            if(n == 1 && lineptr[0] == '\n')
+                continue;
             command_list_t *cmd_list;
             if(!is_cluster)
             {
@@ -385,7 +392,7 @@ command_list_t *getcmdlist(int udp_socket)
             else
             {
                 PRINTF_FG_WHITE("\r");
-                recv_output(udp_socket, INADDR_ANY, 0);
+                recv_command(udp_socket, INADDR_ANY, 0);
                 PRINTF_FG_WHITE("$ ");
                 fflush(stdout);
             }

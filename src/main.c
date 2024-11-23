@@ -1,4 +1,5 @@
 #define _GNU_SOURCE
+#include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -28,6 +29,14 @@ int main(int argc, char *argv[])
     setup_sighandlers();
     bool to_exit = false;
 
+    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+
+    if(flags == -1)
+        exit_err_status("FNCTL ERROR: ");
+
+    if(fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK) == -1)
+        exit_err_status("FNCTL ERROR: ");
+
     struct sockaddr_in self_addr;
     socklen_t addr_len = sizeof(self_addr);
     int udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
@@ -52,8 +61,6 @@ int main(int argc, char *argv[])
     {
         command_list_t *cmd_list = getcmdlist(udp_socket);
         size_t cmd_list_size = cmd_list->size;
-        PRINTF_FG_CYAN("Executing %zu commands", cmd_list_size);
-        PRINTF_FG_WHITE("\n");
         if(!cmd_list->is_cluster)
         {
             num_process += cmd_list_size;
@@ -86,12 +93,30 @@ int main(int argc, char *argv[])
                                 .ip_address_array[command->stdout_fd - 1],
                             global_cluster_data
                                 .ports_array[command->stdout_fd - 1]);
+                        if(global_cluster_data
+                               .ports_array[command->stdout_fd - 1]
+                           == ntohs(self_addr.sin_port))
+                            recv_command(udp_socket, INADDR_ANY,
+                                         ntohs(self_addr.sin_port));
+                        recv_output(
+                            udp_socket,
+                            global_cluster_data
+                                .ip_address_array[command->stdout_fd - 1],
+                            global_cluster_data
+                                .ports_array[command->stdout_fd - 1]);
                     }
                     else
                     {
                         for(int i = 0; i < global_cluster_data.addr_count; i++)
                             send_command(
                                 command->cmd_arr[0], udp_socket,
+                                global_cluster_data.ip_address_array[i],
+                                global_cluster_data.ports_array[i]);
+                        recv_command(udp_socket, INADDR_ANY,
+                                     ntohs(self_addr.sin_port));
+                        for(int i = 0; i < global_cluster_data.addr_count; i++)
+                            recv_output(
+                                udp_socket,
                                 global_cluster_data.ip_address_array[i],
                                 global_cluster_data.ports_array[i]);
                     }

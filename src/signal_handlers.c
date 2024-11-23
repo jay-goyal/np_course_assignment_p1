@@ -23,7 +23,7 @@ void sigchld_handler(int signo)
         if(pid == 0 || pid == -1)
             return;
         num_process -= 1;
-        PRINTF_FG_GREEN("Process with PID %d exited with exit code %d", pid,
+        PRINTF_FG_GREEN("\rProcess with PID %d exited with exit code %d", pid,
                         WEXITSTATUS(status));
         PRINTF_FG_WHITE("\n");
     }
