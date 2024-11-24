@@ -108,11 +108,14 @@ void recv_command(int udp_socket, in_addr_t src_ip, int port)
         }
     }
 
-    close(fds[1]);
     ssize_t bytes_read;
 
     char buf[PIPE_BUF_SIZE];
     bzero(buf, PIPE_BUF_SIZE);
+
+    for(int i = 0; i < cmd_list->pipe_count; i++)
+        if(cmd_list->pipefds[i] != fds[0])
+            close(cmd_list->pipefds[i]);
 
     while((bytes_read = read(fds[0], buf, PIPE_BUF_SIZE)) > 0)
     {
@@ -127,9 +130,6 @@ void recv_command(int udp_socket, in_addr_t src_ip, int port)
               sizeof(src_addr))
        < 0)
         exit_err_status("SENDTO FAILED WITH: ");
-
-    for(int i = 0; i < cmd_list->pipe_count; i++)
-        close(cmd_list->pipefds[i]);
 
     for(size_t i = 0; i < cmd_list_size; i++)
     {

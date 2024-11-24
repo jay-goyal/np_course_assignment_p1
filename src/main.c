@@ -115,10 +115,15 @@ int main(int argc, char *argv[])
                         recv_command(udp_socket, INADDR_ANY,
                                      ntohs(self_addr.sin_port));
                         for(int i = 0; i < global_cluster_data.addr_count; i++)
+                        {
+                            PRINTF_FG_CYAN("-------OUTPUT OF NODE n%d-------",
+                                           i);
+                            PRINTF_FG_WHITE("\n");
                             recv_output(
                                 udp_socket,
                                 global_cluster_data.ip_address_array[i],
                                 global_cluster_data.ports_array[i]);
+                        }
                     }
                 }
             }
