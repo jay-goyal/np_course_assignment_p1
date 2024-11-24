@@ -7,21 +7,17 @@
 #include "signal_handlers.h"
 #include "utils/printfn.h"
 
-void sigchld_handler(int signo)
-{
-    if(signo != SIGCHLD)
-    {
+void sigchld_handler(int signo) {
+    if (signo != SIGCHLD) {
         PRINTF_FG_RED("Invalid signal received");
         PRINTF_FG_WHITE("\n");
     }
     pid_t pid;
     int status;
     int flags = WNOHANG;
-    while(1)
-    {
+    while (1) {
         pid = waitpid(-1, &status, WNOHANG);
-        if(pid == 0 || pid == -1)
-            return;
+        if (pid == 0 || pid == -1) return;
         num_process -= 1;
         PRINTF_FG_GREEN("\rProcess with PID %d exited with exit code %d", pid,
                         WEXITSTATUS(status));

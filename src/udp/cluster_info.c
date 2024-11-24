@@ -8,12 +8,10 @@
 #include "utils/misc.h"
 
 void send_cluster_data_udp(cluster_data_t *data, int sock, in_addr_t dest_ip,
-                           int dest_port)
-{
-    ssize_t buffer_size
-        = sizeof(data->addr_count)
-          + (sizeof(*data->ip_address_array) * data->addr_count)
-          + (sizeof(*data->ports_array) * data->addr_count);
+                           int dest_port) {
+    ssize_t buffer_size = sizeof(data->addr_count) +
+                          (sizeof(*data->ip_address_array) * data->addr_count) +
+                          (sizeof(*data->ports_array) * data->addr_count);
     void *buffer = malloc(buffer_size);
 
     void *ptr = buffer;
@@ -31,30 +29,28 @@ void send_cluster_data_udp(cluster_data_t *data, int sock, in_addr_t dest_ip,
     dest_addr.sin_port = htons(dest_port);
     dest_addr.sin_addr.s_addr = dest_ip;
 
-    ssize_t send_bytes
-        = sendto(sock, buffer, buffer_size, 0, (struct sockaddr *) &dest_addr,
-                 sizeof(dest_addr));
+    ssize_t send_bytes =
+        sendto(sock, buffer, buffer_size, 0, (struct sockaddr *)&dest_addr,
+               sizeof(dest_addr));
 
-    if(send_bytes < 0)
-        exit_err_status("Failed to send data");
+    if (send_bytes < 0) exit_err_status("Failed to send data");
 
     free(buffer);
 }
 
-cluster_data_t recv_cluster_data_udp(int socket)
-{
+cluster_data_t recv_cluster_data_udp(int socket) {
     cluster_data_t data;
     void *buf = malloc(sizeof(size_t));
-    ssize_t recv_bytes
-        = recvfrom(socket, buf, sizeof(size_t), MSG_PEEK, NULL, NULL);
+    ssize_t recv_bytes =
+        recvfrom(socket, buf, sizeof(size_t), MSG_PEEK, NULL, NULL);
 
-    data.addr_count = *((size_t *) buf);
-    data.ip_address_array
-        = malloc(sizeof(*data.ip_address_array) * data.addr_count);
+    data.addr_count = *((size_t *)buf);
+    data.ip_address_array =
+        malloc(sizeof(*data.ip_address_array) * data.addr_count);
     data.ports_array = malloc(sizeof(*data.ports_array) * data.addr_count);
-    ssize_t buf_size = sizeof(data.addr_count)
-                       + (sizeof(*data.ip_address_array) * data.addr_count)
-                       + (sizeof(*data.ports_array) * data.addr_count);
+    ssize_t buf_size = sizeof(data.addr_count) +
+                       (sizeof(*data.ip_address_array) * data.addr_count) +
+                       (sizeof(*data.ports_array) * data.addr_count);
     buf = realloc(buf, buf_size);
 
     recv_bytes = recvfrom(socket, buf, buf_size, 0, NULL, NULL);

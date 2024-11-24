@@ -12,4 +12,4 @@ extern unsigned int num_process;
 extern bool is_cluster;
 extern cluster_data_t global_cluster_data;
 
-#endif // !MAIN_H
+#endif  // !MAIN_H

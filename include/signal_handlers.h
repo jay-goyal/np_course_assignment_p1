@@ -4,4 +4,4 @@
 void sigchld_handler(int signo);
 void setup_sighandlers(void);
 
-#endif // !SIGNAL_HANDLERS_H
+#endif  // !SIGNAL_HANDLERS_H

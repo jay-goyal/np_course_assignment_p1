@@ -9,4 +9,4 @@ void send_command(char *command, int udp_socket, in_addr_t dest_ip, int port);
 void recv_command(int udp_socket, in_addr_t src_ip, int port);
 void recv_output(int udp_socket, in_addr_t dest_ip, int port);
 
-#endif // !COMMAND_DATA_H
+#endif  // !COMMAND_DATA_H

@@ -16,8 +16,7 @@
 #define PRINTF_FG_GREEN(fmt, ...) printf(FG_GREEN fmt FG_RST, ##__VA_ARGS__)
 #define PRINTF_FG_YELLOW(fmt, ...) printf(FG_YELLOW fmt FG_RST, ##__VA_ARGS__)
 #define PRINTF_FG_BLUE(fmt, ...) printf(FG_BLUE fmt FG_RST, ##__VA_ARGS__)
-#define PRINTF_FG_MAGENTA(fmt, ...)                                           \
-    printf(FG_MAGENTA fmt FG_RST, ##__VA_ARGS__)
+#define PRINTF_FG_MAGENTA(fmt, ...) printf(FG_MAGENTA fmt FG_RST, ##__VA_ARGS__)
 #define PRINTF_FG_CYAN(fmt, ...) printf(FG_CYAN fmt FG_RST, ##__VA_ARGS__)
 
-#endif // !PRINTFN_H
+#endif  // !PRINTFN_H

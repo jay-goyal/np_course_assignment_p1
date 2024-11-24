@@ -5,16 +5,14 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-typedef struct command
-{
+typedef struct command {
     char **cmd_arr;
     size_t size;
     int stdin_fd;
     int stdout_fd;
 } command_t;
 
-typedef struct command_list
-{
+typedef struct command_list {
     command_t *cmd_list;
     int *pipefds;
     size_t size;
@@ -29,4 +27,4 @@ typedef struct command_list
     int *ports_array;
 } command_list_t;
 
-#endif // !CMD_H
+#endif  // !CMD_H

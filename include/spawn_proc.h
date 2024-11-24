@@ -4,4 +4,4 @@
 #include "types/cmd.h"
 void spawn_proc(command_t *cmd, int *pipefds, size_t num_pipes);
 
-#endif // !SPAWN_PROC_H
+#endif  // !SPAWN_PROC_H
