@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -49,6 +50,9 @@ command_list_t *parse_command(char *cmd_str, int cmd_len, int default_stdin,
     cmd->cmd_arr[0] = curr_string;
     bool is_str_start = true;
     size_t ifd_idx = 0;
+    bool is_next_file = false;
+    bool is_stdin = false;
+    bool is_append = false;
 
     for (int i = 0; i < cmd_len; i++) {
         char c = cmd_str[i];
@@ -117,54 +121,14 @@ command_list_t *parse_command(char *cmd_str, int cmd_len, int default_stdin,
         }
 
         if (c == '\n') {
-            // Add \0 at end of current string
-            curr_string = realloc(curr_string, (cmd_idx + 1) * sizeof(char));
-            curr_string[cmd_idx] = '\0';
-
-            // Add another element to cmd_arr array of current command
-            if (cmds->is_cluster) {
-                cmds->addr_count++;
-                cmds->ip_address_array =
-                    realloc(cmds->ip_address_array,
-                            sizeof(*cmds->ip_address_array) * cmds->addr_count);
-                cmds->ports_array =
-                    realloc(cmds->ports_array,
-                            sizeof(*cmds->ports_array) * cmds->addr_count);
-                cmds->ip_address_array[cmds->addr_count - 1] =
-                    inet_addr(curr_string);
-                char *ip = strtok(curr_string, "::");
-                char *port = strtok(NULL, "::");
-                if (!ip || !port) {
-                    PRINTF_FG_RED("INVALID STRING PASSED IN IP");
-                    PRINTF_FG_WHITE("\n");
-                    exit(EXIT_FAILURE);
-                }
-                cmds->ip_address_array[cmds->addr_count - 1] = inet_addr(ip);
-                cmds->ports_array[cmds->addr_count - 1] = atoi(port);
-                free(curr_string);
-            } else {
-                cmd->cmd_arr[cmd->size - 1] = curr_string;
-                cmd->cmd_arr =
-                    realloc(cmd->cmd_arr, (cmd->size + 1) * sizeof(char *));
-                cmd->cmd_arr[cmd->size++] = NULL;
-            }
-            break;
-        }
-
-        if (c == ' ') {
-            if (!is_str_start) {
+            if (!is_next_file) {
                 // Add \0 at end of current string
                 curr_string =
                     realloc(curr_string, (cmd_idx + 1) * sizeof(char));
                 curr_string[cmd_idx] = '\0';
 
-                if (cmd->size == 1 && strcmp(curr_string, "cluster") == 0) {
-                    cmds->is_cluster = true;
-                    cmds->addr_count = 0;
-                    free(curr_string);
-                }
-
-                else if (cmds->is_cluster) {
+                // Add another element to cmd_arr array of current command
+                if (cmds->is_cluster) {
                     cmds->addr_count++;
                     cmds->ip_address_array = realloc(
                         cmds->ip_address_array,
@@ -176,24 +140,177 @@ command_list_t *parse_command(char *cmd_str, int cmd_len, int default_stdin,
                         inet_addr(curr_string);
                     char *ip = strtok(curr_string, "::");
                     char *port = strtok(NULL, "::");
+                    if (!ip || !port) {
+                        PRINTF_FG_RED("INVALID STRING PASSED IN IP");
+                        PRINTF_FG_WHITE("\n");
+                        exit(EXIT_FAILURE);
+                    }
                     cmds->ip_address_array[cmds->addr_count - 1] =
                         inet_addr(ip);
                     cmds->ports_array[cmds->addr_count - 1] = atoi(port);
                     free(curr_string);
                 } else {
-                    // Add another element to cmd_arr array of current command
                     cmd->cmd_arr[cmd->size - 1] = curr_string;
                     cmd->cmd_arr =
                         realloc(cmd->cmd_arr, (cmd->size + 1) * sizeof(char *));
+                    cmd->cmd_arr[cmd->size++] = NULL;
+                }
+            } else {
+                int fd;
+                if (is_stdin) {
+                    fd = open(curr_string, O_RDONLY);
+                    cmd->stdin_fd = fd;
+                } else {
+                    if (is_append)
+                        fd = open(curr_string, O_WRONLY | O_APPEND | O_CREAT,
+                                  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+                    else
+                        fd = open(curr_string, O_WRONLY | O_TRUNC | O_CREAT,
+                                  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+                    cmd->stdout_fd = fd;
                 }
 
-                // Reset the string
-                cmd_size = BASE_CMD_SIZE;
-                curr_string = (char *)malloc(cmd_size * sizeof(char));
-                cmd_idx = 0;
+                is_stdin = false;
+                is_append = false;
+                is_next_file = false;
+
+                free(curr_string);
+
+                // Add fd to pipefds
+                cmds->pipefds = (int *)realloc(
+                    cmds->pipefds, (cmds->pipe_count + 1) * sizeof(int));
+                cmds->pipefds[cmds->pipe_count++] = fd;
+            }
+            break;
+        }
+
+        if (c == ' ') {
+            if (!is_str_start) {
+                curr_string =
+                    realloc(curr_string, (cmd_idx + 1) * sizeof(char));
+                curr_string[cmd_idx] = '\0';
+
+                if (!is_next_file) {
+                    // Add \0 at end of current string
+                    if (cmd->size == 1 && strcmp(curr_string, "cluster") == 0) {
+                        cmds->is_cluster = true;
+                        cmds->addr_count = 0;
+                        free(curr_string);
+                    }
+
+                    else if (cmds->is_cluster) {
+                        cmds->addr_count++;
+                        cmds->ip_address_array = realloc(
+                            cmds->ip_address_array,
+                            sizeof(*cmds->ip_address_array) * cmds->addr_count);
+                        cmds->ports_array = realloc(
+                            cmds->ports_array,
+                            sizeof(*cmds->ports_array) * cmds->addr_count);
+                        cmds->ip_address_array[cmds->addr_count - 1] =
+                            inet_addr(curr_string);
+                        char *ip = strtok(curr_string, "::");
+                        char *port = strtok(NULL, "::");
+                        cmds->ip_address_array[cmds->addr_count - 1] =
+                            inet_addr(ip);
+                        cmds->ports_array[cmds->addr_count - 1] = atoi(port);
+                        free(curr_string);
+                    } else {
+                        // Add another element to cmd_arr array of current
+                        // command
+                        cmd->cmd_arr[cmd->size - 1] = curr_string;
+                        cmd->cmd_arr = realloc(
+                            cmd->cmd_arr, (cmd->size + 1) * sizeof(char *));
+                    }
+
+                    // Reset the string
+                    cmd_size = BASE_CMD_SIZE;
+                    curr_string = (char *)malloc(cmd_size * sizeof(char));
+                    cmd_idx = 0;
+                } else {
+                    int fd;
+                    if (is_stdin) {
+                        fd = open(curr_string, O_RDONLY);
+                        cmd->stdin_fd = fd;
+                    } else {
+                        if (is_append)
+                            fd =
+                                open(curr_string, O_WRONLY | O_APPEND | O_CREAT,
+                                     S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+                        else
+                            fd = open(curr_string, O_WRONLY | O_CREAT,
+                                      S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+                        cmd->stdout_fd = fd;
+                    }
+
+                    is_stdin = false;
+                    is_append = false;
+                    is_next_file = false;
+
+                    free(curr_string);
+
+                    // Add fd to pipefds
+                    cmds->pipefds = (int *)realloc(
+                        cmds->pipefds, (cmds->pipe_count + 1) * sizeof(int));
+                    cmds->pipefds[cmds->pipe_count++] = fd;
+
+                    // Add another command to cmd_list
+                    cmds->cmd_list = (command_t *)realloc(
+                        cmds->cmd_list, (cmds->size + 1) * sizeof(command_t));
+
+                    cmd = &cmds->cmd_list[cmds->size++];
+
+                    // Set command struct correctly
+                    cmd->stdin_fd = default_stdout;
+                    cmd->stdout_fd = default_stdout;
+                    cmd->cmd_arr = (char **)malloc(sizeof(char *));
+                    cmd->size = 1;
+
+                    // Create command array
+                    cmd_size = BASE_CMD_SIZE;
+                    cmd_idx = 0;
+                    curr_string = (char *)malloc(cmd_size * sizeof(char));
+                    cmd->cmd_arr[0] = curr_string;
+                    is_str_start = true;
+                }
                 is_str_start = true;
                 if (!cmds->is_cluster) cmd->cmd_arr[cmd->size++] = curr_string;
             }
+            continue;
+        }
+        if (c == '>' || c == '<') {
+            if (cmd_idx != 0) {
+                // Add \0 at end of current string
+                curr_string =
+                    realloc(curr_string, (cmd_idx + 1) * sizeof(char));
+                curr_string[cmd_idx] = '\0';
+                cmd->cmd_arr[cmd->size - 1] = curr_string;
+
+                // Add another element to cmd_arr array of current command
+                cmd->cmd_arr =
+                    realloc(cmd->cmd_arr, (cmd->size + 1) * sizeof(char *));
+                cmd->cmd_arr[cmd->size++] = NULL;
+            } else {
+                free(curr_string);
+                cmd->cmd_arr[cmd->size - 1] = NULL;
+            }
+
+            // Create new string
+            cmd_size = BASE_CMD_SIZE;
+            cmd_idx = 0;
+            curr_string = (char *)malloc(cmd_size * sizeof(char));
+            is_str_start = true;
+
+            // Set flags appropriately
+            is_next_file = true;
+            if (c == '>') {
+                is_stdin = false;
+                if (cmd_str[i + 1] == '>') {
+                    is_append = true;
+                }
+            } else {
+                is_stdin = true;
+            }
+
             continue;
         }
 

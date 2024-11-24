@@ -1,13 +1,20 @@
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 // PROJECT IMPORTS
+#include "main.h"
 #include "spawn_proc.h"
 #include "utils/misc.h"
 
 void spawn_proc(command_t *cmd, int *pipefds, size_t num_pipes) {
+    if (cmd->size == 1 && strcmp(cmd->cmd_arr[0], "") == 0) {
+        num_process -= 1;
+        return;
+    }
+
     pid_t pid = fork();
     if (pid != 0) return;
 
