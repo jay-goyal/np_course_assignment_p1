@@ -1,7 +1,0 @@
-build
-compile_commands.json
-include
-Makefile
-README.md
-src
-test.txt
